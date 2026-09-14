@@ -1,0 +1,2 @@
+"""Meme sheet cropper application."""
+

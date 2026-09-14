@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="从 PNG 拼图中识别、裁剪并导出表情包。">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>表情切切</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="表情切切首页">
+      <span class="brand-mark" aria-hidden="true">切</span>
+      <span>表情切切</span>
+    </a>
+    <p id="headerStatus">等待上传 PNG</p>
+  </header>
+
+  <main>
+    <section id="uploadView" class="upload-view" aria-labelledby="uploadTitle">
+      <div class="upload-copy">
+        <p class="eyebrow">PNG 表情拼图处理器</p>
+        <h1 id="uploadTitle">一张拼图，整理成两套表情。</h1>
+        <p>自动找出每个表情，以正方形裁切并生成 300px PNG、GIF 和首图 200px 版本。</p>
+      </div>
+      <button id="dropZone" class="drop-zone" type="button">
+        <span class="drop-icon"><i data-lucide="image-up" aria-hidden="true"></i></span>
+        <strong>选择 PNG 图片</strong>
+        <span>或将文件拖到这里，最大 25 MB</span>
+      </button>
+      <input id="fileInput" type="file" accept="image/png,.png" hidden>
+    </section>
+
+    <section id="workspace" class="workspace" hidden aria-label="表情裁切工作台">
+      <div class="source-pane">
+        <div class="pane-heading">
+          <div>
+            <p class="eyebrow">识别范围</p>
+            <h1 id="sourceTitle">原图</h1>
+          </div>
+          <button id="replaceButton" class="button ghost" type="button">
+            <i data-lucide="replace" aria-hidden="true"></i><span>换一张</span>
+          </button>
+        </div>
+
+        <div class="mode-toolbar" aria-label="识别设置">
+          <div class="segmented" role="group" aria-label="识别模式">
+            <button type="button" class="active" data-mode="auto">自动识别</button>
+            <button type="button" data-mode="grid">规则网格</button>
+          </div>
+          <div id="gridFields" class="grid-fields" hidden>
+            <label>行 <input id="rowInput" type="number" value="2" min="1" max="20"></label>
+            <span aria-hidden="true">×</span>
+            <label>列 <input id="columnInput" type="number" value="2" min="1" max="20"></label>
+          </div>
+          <button id="reanalyzeButton" class="icon-button" type="button" title="按当前设置重新识别" aria-label="按当前设置重新识别">
+            <i data-lucide="scan-search" aria-hidden="true"></i>
+          </button>
+          <button id="editModeButton" class="button ghost compact" type="button" aria-pressed="false">
+            <i data-lucide="scan-line" aria-hidden="true"></i><span>手动修正</span>
+          </button>
+          <button id="addBoxButton" class="icon-button edit-only" type="button" title="新增裁剪框" aria-label="新增裁剪框" hidden>
+            <i data-lucide="square-plus" aria-hidden="true"></i>
+          </button>
+          <button id="deleteBoxButton" class="icon-button edit-only" type="button" title="删除选中裁剪框" aria-label="删除选中裁剪框" hidden>
+            <i data-lucide="trash-2" aria-hidden="true"></i>
+          </button>
+          <button id="fitButton" class="icon-button" type="button" title="完整显示原图" aria-label="完整显示原图">
+            <i data-lucide="maximize-2" aria-hidden="true"></i>
+          </button>
+          <label class="zoom-control" for="zoomInput"><span>缩放</span><input id="zoomInput" type="range" min="25" max="220" value="100"><output id="zoomValue">100%</output></label>
+        </div>
+
+        <div class="canvas-stage" id="canvasStage" tabindex="0" aria-label="原图编辑区域">
+          <canvas id="sourceCanvas" aria-label="原图及识别框预览"></canvas>
+          <div id="canvasLoading" class="canvas-loading" hidden>
+            <span class="spinner" aria-hidden="true"></span>正在识别
+          </div>
+        </div>
+        <p class="source-meta"><span id="imageMeta"></span><span id="detectMeta"></span><span id="editHint" hidden>拖动框体移动，拖动右下角调整大小</span></p>
+      </div>
+
+      <aside class="result-pane" aria-labelledby="resultTitle">
+        <div class="pane-heading result-heading">
+          <div>
+            <p class="eyebrow">导出清单</p>
+            <h2 id="resultTitle">已识别 <span id="cropCount">0</span> 张</h2>
+          </div>
+          <button id="toggleAllButton" class="button ghost compact" type="button">全部停用</button>
+        </div>
+
+        <label class="field-label" for="folderName">大文件夹名称</label>
+        <input id="folderName" class="text-field" type="text" maxlength="60" autocomplete="off">
+
+        <div id="cropList" class="crop-list"></div>
+
+        <div class="export-bar">
+          <div>
+            <strong id="enabledCount">0 张待导出</strong>
+            <span>PNG、GIF 与首图将打包为 ZIP</span>
+          </div>
+          <button id="exportButton" class="button primary" type="button">
+            <i data-lucide="download" aria-hidden="true"></i><span>下载文件夹</span>
+          </button>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
