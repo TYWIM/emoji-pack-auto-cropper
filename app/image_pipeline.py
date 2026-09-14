@@ -4,7 +4,6 @@ import io
 import re
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Iterable
 
 import cv2
@@ -254,6 +253,20 @@ def crop_and_resize(image: Image.Image, box: CropBox, size: int) -> Image.Image:
     return cropped.resize((size, size), Image.Resampling.LANCZOS)
 
 
+def _gif_friendly(image: Image.Image) -> Image.Image:
+    """GIF 输出预处理：把半透明像素的 RGB 按 alpha 预乘。
+
+    Pillow 保存 GIF 时会把 alpha >= 128 的半透明像素按原始 RGB 硬切为不透明，
+    抗锯齿边缘因此变成白色/亮色硬边；预乘后边缘变为平滑渐变，消除白边。
+    """
+    rgba = image.convert("RGBA")
+    if rgba.getchannel("A").getextrema()[0] >= 255:
+        return rgba
+    array = np.asarray(rgba).astype(np.int16)
+    array[:, :, :3] = array[:, :, :3] * array[:, :, 3:4] // 255
+    return Image.fromarray(array.astype(np.uint8))
+
+
 def safe_folder_name(value: str, fallback: str = "表情包") -> str:
     cleaned = INVALID_PATH_CHARS.sub("_", value).strip(" .")
     return cleaned[:60] or fallback
@@ -297,7 +310,7 @@ def build_export(
             archive.writestr(f"{root}/PNG_300x300/{base_name}.png", png_data.getvalue())
 
             gif_data = io.BytesIO()
-            resized.save(gif_data, "GIF", save_all=False, optimize=True, disposal=2)
+            _gif_friendly(resized).save(gif_data, "GIF", save_all=False, optimize=True, disposal=2)
             archive.writestr(f"{root}/GIF_300x300/{base_name}.gif", gif_data.getvalue())
             if first_image is None:
                 first_image = (base_name, resized)

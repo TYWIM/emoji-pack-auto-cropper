@@ -210,6 +210,10 @@ button:focus-visible, input:focus-visible {
 .text-field { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
 .text-field:hover, .text-field:focus { border-color: var(--line-strong); }
 
+.bulk-bar { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
+.bulk-input { min-width: 0; flex: 1; }
+.bulk-input::placeholder { color: var(--muted); opacity: .8; }
+
 .crop-list { flex: 1; min-height: 120px; overflow-y: auto; margin: 18px -10px 18px 0; padding-right: 10px; }
 .crop-item {
   min-height: 80px;
@@ -239,6 +243,26 @@ button:focus-visible, input:focus-visible {
 
 .toast { position: fixed; z-index: 10; left: 50%; bottom: 24px; max-width: min(90vw, 480px); transform: translateX(-50%); padding: 12px 16px; background: var(--ink); color: white; border-radius: 7px; box-shadow: 0 8px 32px rgb(0 0 0 / .2); font-size: 13px; animation: toast-in 220ms ease-out; }
 
+.icon-button:disabled { opacity: .4; cursor: default; }
+
+.lightbox {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  background: rgb(20 20 18 / .72);
+  backdrop-filter: blur(3px);
+  animation: lightbox-in 160ms ease-out;
+}
+.lightbox[hidden] { display: none; }
+.lightbox-frame { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: min(92vw, 640px); }
+.lightbox-frame img {
+  max-width: min(92vw, 640px); max-height: 76vh;
+  border-radius: 10px; box-shadow: 0 18px 60px rgb(0 0 0 / .45);
+  background: repeating-conic-gradient(#e9e8e3 0% 25%, #fff 0% 50%) 0 0 / 22px 22px;
+}
+.lightbox-close { background: var(--surface); border-color: var(--line-strong); }
+.lightbox-close:hover { background: var(--paper); }
+@keyframes lightbox-in { from { opacity: 0; } }
+
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } }
 @keyframes item-in { from { opacity: 0; transform: translateX(8px); } }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -262,6 +286,7 @@ button:focus-visible, input:focus-visible {
   .zoom-control { width: 100%; order: 4; }
   .zoom-control input { flex: 1; }
   .grid-fields { order: 3; width: 100%; }
+  .bulk-bar { align-items: stretch; flex-direction: column; }
   .crop-item { grid-template-columns: 20px 54px minmax(0, 1fr) 36px; gap: 8px; }
   .crop-thumb { width: 54px; height: 54px; }
   .export-bar { align-items: stretch; flex-direction: column; }

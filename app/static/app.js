@@ -11,6 +11,9 @@ const state = {
   editMode: false,
   selectedIndex: 0,
   pointerAction: null,
+  modified: false,
+  undoStack: [],
+  redoStack: [],
 };
 
 const elements = {
@@ -26,6 +29,8 @@ const elements = {
   editModeButton: document.querySelector("#editModeButton"),
   addBoxButton: document.querySelector("#addBoxButton"),
   deleteBoxButton: document.querySelector("#deleteBoxButton"),
+  undoButton: document.querySelector("#undoButton"),
+  redoButton: document.querySelector("#redoButton"),
   fitButton: document.querySelector("#fitButton"),
   zoomInput: document.querySelector("#zoomInput"),
   zoomValue: document.querySelector("#zoomValue"),
@@ -39,6 +44,11 @@ const elements = {
   cropCount: document.querySelector("#cropCount"),
   cropList: document.querySelector("#cropList"),
   folderName: document.querySelector("#folderName"),
+  bulkName: document.querySelector("#bulkName"),
+  bulkApplyButton: document.querySelector("#bulkApplyButton"),
+  lightbox: document.querySelector("#lightbox"),
+  lightboxImg: document.querySelector("#lightboxImg"),
+  lightboxClose: document.querySelector("#lightboxClose"),
   enabledCount: document.querySelector("#enabledCount"),
   toggleAllButton: document.querySelector("#toggleAllButton"),
   exportButton: document.querySelector("#exportButton"),
@@ -53,6 +63,76 @@ function showToast(message) {
   elements.toast.textContent = message;
   elements.toast.hidden = false;
   toastTimer = setTimeout(() => { elements.toast.hidden = true; }, 3200);
+}
+
+function markModified() {
+  state.modified = true;
+}
+
+function confirmDiscard(action) {
+  if (!state.modified) return true;
+  return window.confirm(`${action}将清空当前已填写的名称和启停设置，确定继续？`);
+}
+
+function pushHistory() {
+  state.undoStack.push({
+    boxes: state.boxes.map((box) => ({ ...box })),
+    items: state.items.map((item) => ({ ...item })),
+  });
+  if (state.undoStack.length > 50) state.undoStack.shift();
+  state.redoStack.length = 0;
+  updateUndoButtons();
+}
+
+function restoreHistory(snapshot) {
+  state.boxes = snapshot.boxes;
+  state.items = snapshot.items;
+  state.selectedIndex = Math.max(0, Math.min(state.selectedIndex, state.boxes.length - 1));
+  renderList();
+  drawCanvas();
+}
+
+function undo() {
+  if (!state.undoStack.length) return;
+  state.redoStack.push({
+    boxes: state.boxes.map((box) => ({ ...box })),
+    items: state.items.map((item) => ({ ...item })),
+  });
+  restoreHistory(state.undoStack.pop());
+  updateUndoButtons();
+}
+
+function redo() {
+  if (!state.redoStack.length) return;
+  state.undoStack.push({
+    boxes: state.boxes.map((box) => ({ ...box })),
+    items: state.items.map((item) => ({ ...item })),
+  });
+  restoreHistory(state.redoStack.pop());
+  updateUndoButtons();
+}
+
+function updateUndoButtons() {
+  elements.undoButton.disabled = state.undoStack.length === 0;
+  elements.redoButton.disabled = state.redoStack.length === 0;
+}
+
+function openLightbox(index) {
+  const item = state.items[index];
+  if (!item || !state.sourceImage) return;
+  const box = state.boxes[index];
+  const canvas = document.createElement("canvas");
+  canvas.width = 300;
+  canvas.height = 300;
+  canvas.getContext("2d").drawImage(state.sourceImage, box.x, box.y, box.size, box.size, 0, 0, 300, 300);
+  elements.lightboxImg.src = canvas.toDataURL("image/png");
+  elements.lightbox.hidden = false;
+  elements.lightboxClose.focus();
+}
+
+function closeLightbox() {
+  elements.lightbox.hidden = true;
+  elements.lightboxImg.src = "";
 }
 
 async function apiError(response) {
@@ -88,6 +168,10 @@ async function analyze(file = state.file) {
     if (!response.ok) throw new Error(await apiError(response));
     const result = await response.json();
     state.sessionId = result.session_id;
+    state.modified = false;
+    state.undoStack.length = 0;
+    state.redoStack.length = 0;
+    updateUndoButtons();
     state.boxes = result.boxes;
     state.width = result.width;
     state.height = result.height;
@@ -207,7 +291,7 @@ function renderList() {
     row.className = `crop-item${item.enabled ? "" : " disabled"}`;
     row.style.animationDelay = `${Math.min(index * 28, 240)}ms`;
     row.addEventListener("click", (event) => {
-      if (event.target instanceof HTMLInputElement) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLImageElement) return;
       state.selectedIndex = index;
       drawCanvas();
     });
@@ -219,6 +303,7 @@ function renderList() {
     checkbox.addEventListener("change", () => {
       item.enabled = checkbox.checked;
       row.classList.toggle("disabled", !item.enabled);
+      markModified();
       updateSummary();
       drawCanvas();
     });
@@ -227,7 +312,10 @@ function renderList() {
     image.className = "crop-thumb";
     image.alt = `第 ${index + 1} 张表情预览`;
     image.loading = "lazy";
-    image.src = `/api/session/${state.sessionId}/crop/${item.cropIndex}`;
+    image.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openLightbox(index);
+    });
 
     const nameWrap = document.createElement("div");
     nameWrap.className = "name-wrap";
@@ -241,6 +329,14 @@ function renderList() {
     input.addEventListener("input", () => {
       item.name = input.value.trim();
       input.classList.toggle("invalid", !isValidName(item.name));
+      markModified();
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const next = document.querySelectorAll(".name-input")[index + 1];
+      if (next) next.focus();
+      else input.blur();
     });
     nameWrap.append(label, input);
 
@@ -328,9 +424,13 @@ async function exportFiles() {
 }
 
 elements.dropZone.addEventListener("click", () => elements.fileInput.click());
-elements.replaceButton.addEventListener("click", () => elements.fileInput.click());
+elements.replaceButton.addEventListener("click", () => {
+  if (confirmDiscard("换一张")) elements.fileInput.click();
+});
 elements.fileInput.addEventListener("change", () => analyze(elements.fileInput.files[0]));
-elements.reanalyzeButton.addEventListener("click", () => analyze());
+elements.reanalyzeButton.addEventListener("click", () => {
+  if (confirmDiscard("重新识别")) analyze();
+});
 elements.exportButton.addEventListener("click", exportFiles);
 elements.editModeButton.addEventListener("click", () => {
   state.editMode = !state.editMode;
@@ -339,30 +439,75 @@ elements.editModeButton.addEventListener("click", () => {
   elements.sourceCanvas.classList.toggle("editing", state.editMode);
   elements.editHint.hidden = !state.editMode;
   document.querySelectorAll(".edit-only").forEach((element) => { element.hidden = !state.editMode; });
+  updateUndoButtons();
   drawCanvas();
 });
 elements.addBoxButton.addEventListener("click", () => {
+  pushHistory();
   const size = Math.max(40, Math.round(Math.min(state.width, state.height) * 0.25));
   state.boxes.push({ x: Math.round((state.width - size) / 2), y: Math.round((state.height - size) / 2), size });
   state.items.push({ cropIndex: state.items.length, name: "表情", enabled: true });
   state.selectedIndex = state.boxes.length - 1;
+  markModified();
   renderList();
   drawCanvas();
 });
 elements.deleteBoxButton.addEventListener("click", () => {
   if (!state.boxes.length) return;
+  pushHistory();
   state.boxes.splice(state.selectedIndex, 1);
   state.items.splice(state.selectedIndex, 1);
   state.items.forEach((item, index) => { item.cropIndex = index; });
   state.selectedIndex = Math.max(0, Math.min(state.selectedIndex, state.boxes.length - 1));
+  markModified();
   renderList();
   drawCanvas();
 });
+elements.undoButton.addEventListener("click", undo);
+elements.redoButton.addEventListener("click", redo);
+elements.bulkApplyButton.addEventListener("click", () => {
+  const name = elements.bulkName.value.trim();
+  if (!isValidName(name)) return showToast("名称只能填写 1 到 4 个汉字");
+  let applied = 0;
+  state.items.forEach((item) => {
+    if (!item.enabled) return;
+    item.name = name;
+    applied += 1;
+  });
+  if (!applied) return showToast("至少保留一张表情图片");
+  markModified();
+  renderList();
+  showToast(`已为 ${applied} 张表情命名`);
+});
+elements.bulkName.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") elements.bulkApplyButton.click();
+});
+elements.lightboxClose.addEventListener("click", closeLightbox);
+elements.lightbox.addEventListener("click", (event) => {
+  if (event.target === elements.lightbox) closeLightbox();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.lightbox.hidden) {
+    closeLightbox();
+    return;
+  }
+  if (!(event.ctrlKey || event.metaKey)) return;
+  const key = event.key.toLowerCase();
+  if (key === "z" && !event.shiftKey) {
+    event.preventDefault();
+    undo();
+  } else if (key === "y" || (key === "z" && event.shiftKey)) {
+    event.preventDefault();
+    redo();
+  }
+});
 elements.fitButton.addEventListener("click", fitCanvas);
 elements.zoomInput.addEventListener("input", () => setZoom(elements.zoomInput.value));
+elements.folderName.addEventListener("input", markModified);
 elements.toggleAllButton.addEventListener("click", () => {
   const shouldEnable = !state.items.some((item) => item.enabled);
   state.items.forEach((item) => { item.enabled = shouldEnable; });
+  markModified();
   renderList();
   drawCanvas();
 });
@@ -425,6 +570,8 @@ elements.sourceCanvas.addEventListener("pointerup", (event) => {
   const index = state.pointerAction.index;
   state.pointerAction = null;
   elements.sourceCanvas.releasePointerCapture?.(event.pointerId);
+  pushHistory();
+  markModified();
   refreshCropPreview(index);
 });
 elements.sourceCanvas.addEventListener("pointercancel", () => { state.pointerAction = null; });

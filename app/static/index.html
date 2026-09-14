@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <title>表情切切</title>
   <link rel="stylesheet" href="/styles.css">
-  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+  <script src="/vendor/lucide.min.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -68,6 +68,12 @@
           <button id="deleteBoxButton" class="icon-button edit-only" type="button" title="删除选中裁剪框" aria-label="删除选中裁剪框" hidden>
             <i data-lucide="trash-2" aria-hidden="true"></i>
           </button>
+          <button id="undoButton" class="icon-button edit-only" type="button" title="撤销（Ctrl+Z）" aria-label="撤销" hidden>
+            <i data-lucide="undo-2" aria-hidden="true"></i>
+          </button>
+          <button id="redoButton" class="icon-button edit-only" type="button" title="重做（Ctrl+Y）" aria-label="重做" hidden>
+            <i data-lucide="redo-2" aria-hidden="true"></i>
+          </button>
           <button id="fitButton" class="icon-button" type="button" title="完整显示原图" aria-label="完整显示原图">
             <i data-lucide="maximize-2" aria-hidden="true"></i>
           </button>
@@ -95,6 +101,11 @@
         <label class="field-label" for="folderName">大文件夹名称</label>
         <input id="folderName" class="text-field" type="text" maxlength="60" autocomplete="off">
 
+        <div class="bulk-bar">
+          <input id="bulkName" class="text-field bulk-input" type="text" maxlength="4" autocomplete="off" placeholder="批量命名，如：开心" aria-label="批量命名">
+          <button id="bulkApplyButton" class="button ghost compact" type="button">应用到全部</button>
+        </div>
+
         <div id="cropList" class="crop-list"></div>
 
         <div class="export-bar">
@@ -111,5 +122,14 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="表情放大预览" hidden>
+    <div class="lightbox-frame">
+      <img id="lightboxImg" alt="表情放大预览">
+      <button id="lightboxClose" class="button ghost lightbox-close" type="button">
+        <i data-lucide="x" aria-hidden="true"></i><span>关闭</span>
+      </button>
+    </div>
+  </div>
 </body>
 </html>

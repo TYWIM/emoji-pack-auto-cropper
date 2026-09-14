@@ -23,5 +23,11 @@ uvicorn app.main:app --reload
 python -m unittest discover -s tests -v
 ```
 
-详细设计、约束和验收标准见 [开发文档](docs/DEVELOPMENT.md)。
+前端 UI 冒烟测试（需先启动服务）：
 
+```powershell
+npm install playwright --no-save
+node tests/ui_smoke.js
+```
+
+详细设计、约束和验收标准见 [开发文档](docs/DEVELOPMENT.md)。

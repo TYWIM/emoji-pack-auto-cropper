@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import time
 import uuid
 from dataclasses import dataclass
@@ -18,6 +17,7 @@ from .image_pipeline import CropBox, build_export, crop_and_resize, detect_crops
 
 BASE_DIR = Path(__file__).resolve().parent
 SESSION_TTL_SECONDS = 2 * 60 * 60
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 @dataclass
@@ -58,6 +58,16 @@ def _cleanup_sessions() -> None:
         sessions.pop(key, None)
 
 
+async def _read_upload(file: UploadFile) -> bytes:
+    """流式读取上传内容，超过 25 MB 立即拒绝，避免把超大文件整体读入内存。"""
+    data = bytearray()
+    while chunk := await file.read(1024 * 1024):
+        data.extend(chunk)
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=422, detail="PNG 文件不能超过 25 MB")
+    return bytes(data)
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -72,7 +82,7 @@ async def analyze(
 ) -> dict[str, object]:
     _cleanup_sessions()
     try:
-        image = load_png(await file.read())
+        image = load_png(await _read_upload(file))
         boxes = grid_crops(image, rows, columns) if mode == "grid" else detect_crops(image)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -2,9 +2,9 @@ import io
 import unittest
 import zipfile
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
-from app.image_pipeline import build_export, detect_crops, grid_crops, load_png
+from app.image_pipeline import CropBox, build_export, detect_crops, grid_crops, load_png
 
 
 class ImagePipelineTests(unittest.TestCase):
@@ -110,6 +110,32 @@ class ImagePipelineTests(unittest.TestCase):
         Image.new("RGB", (10, 10), "white").save(data, "JPEG")
         with self.assertRaisesRegex(ValueError, "仅支持 PNG"):
             load_png(data.getvalue())
+
+    def test_gif_export_has_no_white_halo_edge(self):
+        # 构造红色主体 + 半透明白色抗锯齿边缘（所有边缘像素 alpha < 255）
+        image = Image.new("RGBA", (200, 200), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((40, 40, 160, 160), fill=(235, 80, 60, 255))
+        for offset, alpha in [(2, 200), (4, 150), (6, 100), (8, 50)]:
+            draw.rectangle(
+                (40 - offset, 40 - offset, 160 + offset, 160 + offset),
+                outline=(255, 255, 255, alpha),
+                width=1,
+            )
+        archive_data = build_export(image, [CropBox(0, 0, 200)], [(0, "开心")], "边缘测试")
+        with zipfile.ZipFile(archive_data) as archive:
+            gif_name = next(name for name in archive.namelist() if name.endswith(".gif"))
+            with Image.open(io.BytesIO(archive.read(gif_name))) as gif:
+                gif_rgba = gif.convert("RGBA")
+                pixels = gif_rgba.load()
+                halo = 0
+                for x in range(gif_rgba.width):
+                    for y in range(gif_rgba.height):
+                        r, g, b, a = pixels[x, y]
+                        if a > 0 and r > 245 and g > 245 and b > 245:
+                            halo += 1
+                # 预乘后白边变成平滑渐变，不应残留纯白硬边
+                self.assertEqual(halo, 0)
 
 
 if __name__ == "__main__":
